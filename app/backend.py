@@ -1,9 +1,7 @@
 from flask import Flask
 from flask import request
 from datetime import datetime
-import gdown
 import csv
-import json
 import unidecode
 
 def normalize(string):
