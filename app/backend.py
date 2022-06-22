@@ -1913,60 +1913,60 @@ people_collection = db.people_collection
 
 @app.route("/getMulatos")
 def getMulatos():
+
+  num_children = request.args.get("num_children")
   
   found = []
   result = people_collection.find( {"$and": [{"$or": [
       {"race":"mulato"},
       {"race":"mulata"}
       ]
-    }, {"num_children": {"$gt": 2}}
+    }, {"num_children": {"$gt": int(num_children)}}
     ]} )
   for person in result:
+    name_text = ""
 
-    if isinstance(person["first_name"],list):
-      first_name = person["first_name"][0]
-    else:
-      first_name = person["first_name"]
+    if (person["first_name"] is not None) and isinstance(person["first_name"], list):
+      name_text = person["first_name"][0]
     
-    if isinstance(person["last_name"],list):
-      last_name = person["last_name"][0]
-    else:
-      last_name = person["last_name"]
+    elif (person["first_name"] is not None):
+      name_text = person["first_name"]
 
     found.append({
       "num_children": person["num_children"],
       "baptismal_mission": person["baptismal_mission"],
       "baptismal_number": person["baptismal_number"],
-      "name_text": first_name + " " + last_name
+      "name_text": name_text
     })
-  
+    
   return {"result": found}
+
 
 
 @app.route("/getMany")
 def getMany():
+
+  num_children = request.args.get("num_children")
   
   found = []
-  result = people_collection.find( {"$and": [{"num_children": {"$gt": 10}}
+  result = people_collection.find( {"$and": [{"num_children": {"$gt": int(num_children)}}
     ]} )
   for person in result:
-
-    if isinstance(person["first_name"],list):
-      first_name = person["first_name"][0]
-    else:
-      first_name = person["first_name"]
     
-    if isinstance(person["last_name"],list):
-      last_name = person["last_name"][0]
-    else:
-      last_name = person["last_name"]
+    name_text = ""
+
+    if (person["first_name"] is not None) and isinstance(person["first_name"], list):
+      name_text = person["first_name"][0]
+    
+    elif (person["first_name"] is not None):
+      name_text = person["first_name"]
 
     found.append({
       "num_children": person["num_children"],
       "baptismal_mission": person["baptismal_mission"],
       "baptismal_number": person["baptismal_number"],
-      "name_text": first_name + " " + last_name
+      "name_text": name_text
     })
-  
+    
   return {"result": found}
 
