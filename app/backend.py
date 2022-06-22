@@ -1,8 +1,13 @@
 from flask import Flask
 from flask import request
+from flask_cors import CORS
 from datetime import datetime
+import certifi
+import os
 import csv
 import unidecode
+import json
+
 
 def normalize(string):
   if string:
@@ -157,16 +162,36 @@ class Person:
     self.children_objs = []
     self.assembled_children_objs = []
 
-  def export_person_string(self):
-    main_string = "{\n"
+  def export_person_json(self):
+    person = {
+      "name": export_attribute(self.first_name),
+      "attributes": {
+        "gender": export_attribute(self.gender),
+        "race": export_attribute(self.race),
+        "origin": export_attribute(self.origin),
+        "location": export_attribute(self.location)
+      },
+      "children": self.export_children_json()
+    }
+    return person
+  
+  def export_children_json(self):
+    children_objs = []
+    for child in self.assembled_children_objs:
+      children_objs.append(child.export_person_json())
+    return children_objs
 
-    person = f"name: '{export_attribute(self.first_name)} {export_attribute(self.last_name)}',\n" \
-              "attributes: {\n"\
-              f"gender: '{export_attribute(self.gender)}',\n"\
-              f"race: '{export_attribute(self.race)}',\n"\
-              f"origin: '{export_attribute(self.origin)}',\n"\
-              f"location: '{export_attribute(self.location)}',\n"\
-              "},\n"
+  def export_person_string(self):
+    main_string = "{"
+
+    person = f"name: '{export_attribute(self.first_name)} {export_attribute(self.last_name)}'," \
+              "attributes: {"\
+              f"gender: '{export_attribute(self.gender)}',"\
+              f"race: '{export_attribute(self.race)}',"\
+              f"origin: '{export_attribute(self.origin)}',"\
+              f"location: '{export_attribute(self.location)}',"\
+              "},"
+
     main_string = main_string + person + self.export_children_string() + "},"
     return main_string
   
@@ -175,10 +200,10 @@ class Person:
     for child in self.assembled_children_objs:
       children_strings.append(child.export_person_string())
     
-    main_string = "children: [\n"
+    main_string = "children: ["
     for child_str in children_strings:
       main_string+=child_str
-    main_string+="]\n"
+    main_string+="]"
 
     return main_string
 
@@ -344,7 +369,7 @@ def split_census_races(race):
     return new_races
   return normalize(race)
 
-with open("censusData.tsv") as fd:
+with open(os.environ["dataPath"] + "censusData.tsv") as fd:
   rd = csv.reader(fd, delimiter="\t", quotechar='"')
   next(rd)
   # Revisit this line_id_ctr!!!!!!
@@ -475,7 +500,7 @@ age_cnt = 0
 
 indexErrors = 0
 
-with open("baptismData.tsv") as fd:
+with open(os.environ["dataPath"] + "baptismData.tsv") as fd:
   rd = csv.reader(fd, delimiter="\t", quotechar='"')
   next(rd)
   
@@ -624,7 +649,7 @@ latest_record = datetime.min.date()
 
 indexErrors = 0
 
-with open("deathData.tsv") as fd:
+with open(os.environ["dataPath"] + "deathData.tsv") as fd:
   rd = csv.reader(fd, delimiter="\t", quotechar='"')
   next(rd)
   for row in rd:
@@ -846,7 +871,7 @@ missingBNumbers = 0
 earliest_marriage = datetime.max.date()
 latest_marriage = datetime.min.date()
 
-with open("marriageData.tsv") as fd:
+with open(os.environ["dataPath"] + "marriageData.tsv") as fd:
   rd = csv.reader(fd, delimiter="\t", quotechar='"')
   next(rd)
   for row in rd:
@@ -1848,6 +1873,7 @@ print("Ready!")
 
 
 app = Flask(__name__)
+CORS(app)
 
 @app.route("/")
 def hello_world():
@@ -1867,6 +1893,49 @@ def getPerson():
 
     person = person_lookup(baptismal_mission, baptismal_number)
     head = findFamilyHead(person)
-    result = head.export_person_string()
-    return result[:len(result)-1]
+    result = head.export_person_json()
+    return json.dumps(result, indent=4)
 
+
+from pymongo import MongoClient
+from pymongo.server_api import ServerApi
+import urllib.parse
+
+username = urllib.parse.quote_plus(os.environ["DB_USER"])
+password = urllib.parse.quote_plus(os.environ["DB_PASS"])
+hostname = urllib.parse.quote_plus(os.environ["DB_URL"])
+
+print(f"{username} {password} {hostname}")
+
+client = MongoClient(f"mongodb+srv://admin:{password}@{hostname}/?retryWrites=true&w=majority", server_api=ServerApi('1'), tlsCAFile=certifi.where())
+db = client.data
+people_collection = db.people_collection
+
+@app.route("/getMulatos")
+def getMulatos():
+  
+  found = []
+  result = people_collection.find( {"$or": [
+      {"race":"mulato"},
+      {"race":"mulata"}
+      ]
+    } )
+  for person in result:
+
+    if isinstance(person["first_name"],list):
+      first_name = person["first_name"][0]
+    else:
+      first_name = person["first_name"]
+    
+    if isinstance(person["last_name"],list):
+      last_name = person["last_name"][0]
+    else:
+      last_name = person["last_name"]
+
+    found.append({
+      "baptismal_mission": person["baptismal_mission"],
+      "baptismal_number": person["baptismal_number"],
+      "name_text": first_name + " " + last_name
+    })
+  
+  return {"result": found}
