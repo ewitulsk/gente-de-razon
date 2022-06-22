@@ -1915,11 +1915,12 @@ people_collection = db.people_collection
 def getMulatos():
   
   found = []
-  result = people_collection.find( {"$or": [
+  result = people_collection.find( {"$and": [{"$or": [
       {"race":"mulato"},
       {"race":"mulata"}
       ]
-    } )
+    }, {"num_children": {"$gt": 2}}
+    ]} )
   for person in result:
 
     if isinstance(person["first_name"],list):
@@ -1933,9 +1934,39 @@ def getMulatos():
       last_name = person["last_name"]
 
     found.append({
+      "num_children": person["num_children"],
       "baptismal_mission": person["baptismal_mission"],
       "baptismal_number": person["baptismal_number"],
       "name_text": first_name + " " + last_name
     })
   
   return {"result": found}
+
+
+@app.route("/getMany")
+def getMany():
+  
+  found = []
+  result = people_collection.find( {"$and": [{"num_children": {"$gt": 10}}
+    ]} )
+  for person in result:
+
+    if isinstance(person["first_name"],list):
+      first_name = person["first_name"][0]
+    else:
+      first_name = person["first_name"]
+    
+    if isinstance(person["last_name"],list):
+      last_name = person["last_name"][0]
+    else:
+      last_name = person["last_name"]
+
+    found.append({
+      "num_children": person["num_children"],
+      "baptismal_mission": person["baptismal_mission"],
+      "baptismal_number": person["baptismal_number"],
+      "name_text": first_name + " " + last_name
+    })
+  
+  return {"result": found}
+
